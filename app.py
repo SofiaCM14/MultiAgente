@@ -36,7 +36,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 45px;
         white-space: pre-wrap;
-        background-color: #E2CCE6; /* Lila pastel para pestañas inactivas */
+        background-color: #FFFFFF; 
         border-radius: 8px;
         color: #8E6C99; /* Texto lila */
         font-weight: bold;
@@ -97,7 +97,12 @@ if uploaded_file is not None:
         else:
             df_inicial = pd.read_excel(uploaded_file)
             
-        st.success("✨ ¡Archivo recibido con éxito por el Agente Orquestador!")
+        # ✨ NORMALIZACIÓN AUTOMÁTICA DEL DATASET DE SOFI ✨
+        # Si encuentra 'Total_Venta', lo renombra a 'Ventas' para acoplarlo al pipeline sin romper nada
+        if 'Total_Venta' in df_inicial.columns and 'Ventas' not in df_inicial.columns:
+            df_inicial = df_inicial.rename(columns={'Total_Venta': 'Ventas'})
+            
+        st.success("✨ ¡Archivo recibido y normalizado con éxito por el Agente Orquestador!")
         
         # --- ORQUESTACIÓN Y FLUJO SECUENCIAL ---
         # 1. El orquestador invoca al Agente 1 (EDA) enviando el dataset original
@@ -133,13 +138,13 @@ if uploaded_file is not None:
                 
         with tab2:
             st.header("🧼 Limpieza y Codificación de Datos")
-            st.info("🔮 **Estado del Agente 2:** ¡Procesamiento completado! Se eliminaron registros duplicados, se imputaron valores faltantes y se aplicó la codificación categórica para el modelo.")
-            st.write("**Muestra del Dataset listo para el entrenamiento (Primeras filas):**")
+            st.info("🔮 **Estado del Agente 2:** ¡Procesamiento completado! Se eliminaron registros duplicados, se imputaron valores faltantes (como la Edad y el Precio con la mediana) y se ignoraron IDs/Fechas pesadas para el modelo.")
+            st.write("**Muestra del Dataset limpio y codificado (Primeras filas listas para entrenar):**")
             st.dataframe(df_limpio_codificado.head(10), use_container_width=True)
             
         with tab3:
             st.header("📈 Evaluación del Modelo Predictivo")
-            st.write("El Agente 3 entrenó los modelos matemáticos y seleccionó de forma óptima el de mejor rendimiento:")
+            st.write("El Agente 3 entrenó los modelos matemáticos y seleccionó el de menor $RMSE$ (Error Cuadrático Medio):")
             
             # Métricas destacadas en pantalla
             col_m1, col_m2, col_m3 = st.columns(3)
