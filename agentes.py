@@ -97,155 +97,38 @@ class AgenteLimpieza:
         self.nombre = "Agente_Limpieza"
 
     def ejecutar(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        print(f"[{self.nombre}]: Recibí los datos dañados. Empezando a limpiar...")
-        df_limpio = df.copy() # Hacemos una copia para no arruinar el archivo original
+        print(f"[{self.nombre}]: Recibí los datos. Procediendo exclusivamente a eliminar duplicados...")
+        df_limpio = df.copy() 
         
-        # 🌟 PASO 0: FILTRADO DE COLUMNAS INÚTILES PARA LA IA (¡ESTA ES LA MODIFICACIÓN!)
-        # Quitamos la Fecha y el ID de Transacción porque cada renglón tiene uno distinto y no ayudan a predecir dinero.
-        # Quitamos también 'Prenda' porque al ser nombres específicos de ropa (como 'Jeans Cargo') generaría miles de columnas dummies.
-        # Nos quedamos con 'Categoria' que agrupa todo de forma ordenada (como 'Partes Inferiores').
+        # PASO 0: FILTRADO DE COLUMNAS INÚTILES PARA LA IA
         columnas_a_quitar = ['Fecha', 'ID_Transaccion', 'Prenda', 'fecha', 'id_transaccion', 'prenda']
         for col in columnas_a_quitar:
             if col in df_limpio.columns:
                 df_limpio = df_limpio.drop(columns=[col])
 
-        # PASO 1: ELIMINAR RENGLONES DUPLICADOS (REPETIDOS)
-        duplicados_antes = df_limpio.duplicated().sum() # Cuenta cuántos repetidos hay
-        df_limpio = df_limpio.drop_duplicates() # Los borra permanentemente
+        # ⭐ ÚNICO PASO DE LIMPIEZA: ELIMINAR DUPLICADOS ⭐
+        duplicados_antes = df_limpio.duplicated().sum() 
+        df_limpio = df_limpio.drop_duplicates() # Borrado físico
         
-        # PASO 2: RELLENAR CASILLAS EN BLANCO (IMPUTACIÓN)
-        # ¿Con qué criterio rellenaron los nulos? Si la columna es un número, usamos la 'MEDIANA' porque no se altera con valores raros.
-        # Si la columna es texto (categoría), usamos la 'MODA' (el texto que más se repite).
-        for col in df_limpio.columns:
-            if df_limpio[col].isnull().sum() > 0:
-                if df_limpio[col].dtype in [np.float64, np.int64]:
-                    df_limpio[col] = df_limpio[col].fillna(df_limpio[col].median()) # Rellena números
-                else:
-                    moda = df_limpio[col].mode()
-                    df_limpio[col] = df_limpio[col].fillna(moda[0] if not moda.empty else "Desconocido") # Rellena textos
-        
-        # Guardamos una lista de las categorías originales (ej. Ropa, Electrónica) antes de cambiarlas.
-        # Esto sirve para que el Agente 3 pueda dar respuestas que un humano entienda más adelante.
+        # Guardamos mapeo de categorías antes de dummificar para el Agente 3
         categorias_origen = {}
         columnas_cat = df_limpio.select_dtypes(include=['object', 'category']).columns.tolist()
         for col in columnas_cat:
             categorias_origen[col] = df_limpio[col].unique().tolist()
             
         # PASO 3: CONVERTIR PALABRAS A NÚMEROS (ONE-HOT ENCODING)
-        # Los modelos matemáticos no entienden la palabra "Ropa" o "Zapatos".
-        # pd.get_dummies convierte esas palabras en columnas de unos (1) y ceros (0).
+        # Sigue siendo obligatorio para que el Agente 3 (IA) no truene al leer texto
         if len(columnas_cat) > 0:
             df_limpio = pd.get_dummies(df_limpio, columns=columnas_cat, drop_first=True, dtype=int)
             
-        # Guardamos un reporte detallado de qué limpiamos para pasárselo al reporte técnico.
         metadatos_limpieza = {
             "duplicados_eliminados": duplicados_antes,
             "columnas_categorizadas": columnas_cat,
             "mapeo_categorias": categorias_origen
         }
         
-        print(f"[{self.nombre}]: Datos limpios y listos para los modelos matemáticos.")
+        print(f"[{self.nombre}]: Proceso de de-duplicación listo.")
         return df_limpio, metadatos_limpieza
-
-
-# =========================================================================
-# AGENTE 3: EL MATEMÁTICO (Modelo Predictivo)
-# Su trabajo es entrenar dos inteligencias artificiales diferentes, comparar
-# cuál comete menos errores usando RMSE y dar predicciones de ventas.
-# =========================================================================
-class AgentePrediccion:
-    def __init__(self):
-        self.nombre = "Agente_Prediccion"
-
-    def ejecutar(self, df_limpio: pd.DataFrame, metadatos: Dict[str, Any]) -> Dict[str, Any]:
-        print(f"[{self.nombre}]: Iniciando el entrenamiento de los modelos...")
-        
-        # Buscamos otra vez cuál es la columna de ventas en el archivo ya limpio
-        col_ventas = None
-        for col in df_limpio.columns:
-            if 'venta' in col.lower() or 'sales' in col.lower() or 'total' in col.lower():
-                col_ventas = col
-                break
-        if not col_ventas:
-            num_cols = df_limpio.select_dtypes(include=[np.number]).columns
-            col_ventas = num_cols[-1]
-
-        # SEPARACIÓN DE DATOS:
-        # X = Todo lo que usamos para predecir (Precio, Inventario, Categoría, etc.)
-        # y = Lo que queremos adivinar (Las Ventas)
-        X = df_limpio.drop(columns=[col_ventas])
-        y = df_limpio[col_ventas]
-        
-        # EXPLICACIÓN AL DOC: Dividimos los datos usando un 80% para entrenar los modelos
-        # y dejamos un 20% guardado en una caja fuerte (X_test, y_test) para ponerlos a prueba.
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        # MODELO A: REGRESIÓN LINEAL
-        # Es un modelo que asume que los datos crecen o decrecen formando una línea recta.
-        modelo_lr = LinearRegression()
-        modelo_lr.fit(X_train, y_train) # Entrenar / Aprender
-        pred_lr = modelo_lr.predict(X_test) # Hacer examen de prueba
-        # RMSE: Es el promedio de qué tan lejos se quedó el modelo de la respuesta real (El error).
-        rmse_lr = root_mean_squared_error(y_test, pred_lr) 
-        
-        # MODELO B: ÁRBOL DE DECISIÓN
-        # Es un modelo que hace preguntas lógicas tipo árbol ("¿El precio es mayor a $100? Sí/No").
-        # Ponemos max_depth=5 para que el árbol no crezca infinitamente y no memorice las respuestas (sobreajuste).
-        modelo_dt = DecisionTreeRegressor(random_state=42, max_depth=5)
-        modelo_dt.fit(X_train, y_train) # Entrenar / Aprender
-        pred_dt = modelo_dt.predict(X_test) # Hacer examen de prueba
-        rmse_dt = root_mean_squared_error(y_test, pred_dt) # Sacar su error RMSE 
-        
-        # SELECCIÓN DEL GANADOR: 
-        # El modelo que tenga el número RMSE MÁS CHICO es el ganador, porque se equivocó menos.
-        if rmse_lr < rmse_dt:
-            mejor_nombre = "Regresión Lineal"
-            mejor_modelo = modelo_lr
-            mejor_rmse = rmse_lr
-        else:
-            mejor_nombre = "Árbol de Decisión"
-            mejor_modelo = modelo_dt
-            mejor_rmse = rmse_dt
-            
-        # PREDICCIONES INTERPRETABLES (VENTAS ESTIMADAS POR CATEGORÍA) 
-        # Como el profesor quiere ver predicciones lógicas humanas, aquí reconstruimos
-        # las categorías originales para calcular cuánto venderá cada una en promedio.
-        predicciones_humanas = {}
-        columnas_cat_originales = metadatos.get("columnas_categorizadas", [])
-        
-        if columnas_cat_originales:
-            col_principal = columnas_cat_originales[0] # Ej. 'Categoria'
-            valores_cat = metadatos["mapeo_categorias"].get(col_principal, [])
-            
-            # Sacamos un renglón promedio con características genéricas del comercio
-            fila_promedio = X.mean().to_frame().T
-            
-            # Simulamos el comportamiento para cada categoría individual
-            for cat in valores_cat:
-                fila_simulada = fila_promedio.copy()
-                col_dummy = f"{col_principal}_{cat}"
-                if col_dummy in fila_simulada.columns:
-                    fila_simulada[col_dummy] = 1 # Encendemos el interruptor de esa categoría
-                
-                # Le pedimos al modelo ganador que nos diga la venta estimada en pesos
-                ventas_estimadas = mejor_modelo.predict(fila_simulada)[0]
-                # max(0.0, ...) evita que la IA de números negativos absurdos (no puedes vender -$5 pesos)
-                predicciones_humanas[cat] = round(max(0.0, ventas_estimadas), 2)
-        else:
-            # Si el archivo no tenía texto, damos estimados generales usando percentiles
-            predicciones_humanas["Ventas Mínimas Estimadas"] = round(max(0.0, float(np.percentile(pred_dt, 25))), 2)
-            predicciones_humanas["Ventas Promedio Estimadas"] = round(float(np.mean(pred_dt)), 2)
-            predicciones_humanas["Ventas Máximas Estimadas"] = round(float(np.percentile(pred_dt, 75))), 2
-
-        print(f"[{self.nombre}]: Modelado listo! El modelo ganador fue: {mejor_nombre}")
-        return {
-            "rmse_regresion_lineal": round(rmse_lr, 4),
-            "rmse_arbol_decision": round(rmse_dt, 4),
-            "modelo_seleccionado": mejor_nombre,
-            "rmse_mejor": round(mejor_rmse, 4),
-            "predicciones_categoria": predicciones_humanas
-        }
-
 
 # =========================================================================
 # AGENTE ORQUESTADOR: EL JEFE DE JEFES (Coordinador del Sistema Multiagente)

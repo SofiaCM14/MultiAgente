@@ -1,0 +1,13 @@
+ID_Producto,Categoria,Ventas,Precio_Unitario
+101,Electrónica,1500.0,150
+102,Ropa,450.0,45
+103,Hogar,,30
+104,Electrónica,2100.0,210
+105,Ropa,800.0,80
+101,Electrónica,1500.0,150
+106,Hogar,300.0,30
+107,,950.0,95
+108,Ropa,1200.0,120
+109,Hogar,,40
+110,Electrónica,3100.0,310
+111,,600.0,60
