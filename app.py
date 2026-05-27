@@ -29,7 +29,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🛍️ Boutique: Sistema Multiagente de Ventas")
+st.title("🛍️ Sistema Multiagente de Ventas")
 st.markdown("### ✨ Unidad IV - Inteligencia Artificial")
 st.write("Bienvenida al software de gestión inteligente. Carga el dataset de la boutique para iniciar el pipeline automatizado.")
 
